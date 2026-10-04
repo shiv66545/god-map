@@ -4,6 +4,34 @@ The browser only talks to this server. This server talks to the map providers,
 which gives us: caching, rate limiting, input validation, a proper User-Agent,
 swappable providers (via env vars), and no third-party API keys in the browser.
 """
+import sys
+import subprocess
+import importlib.util
+
+# One-click local launcher: missing Python packages are installed automatically.
+REQUIRED_PACKAGES = {
+    "flask": "Flask==3.0.3",
+    "requests": "requests==2.32.3",
+    "werkzeug": "Werkzeug>=3.0,<4.0",
+}
+
+
+def _ensure_dependencies():
+    missing = [spec for module, spec in REQUIRED_PACKAGES.items()
+               if importlib.util.find_spec(module) is None]
+    if not missing:
+        return
+    print("\\nGod Map: installing missing components automatically...")
+    print("This normally happens only on the first launch.\\n")
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", *missing])
+    except (subprocess.CalledProcessError, OSError) as exc:
+        print("\\nAutomatic installation failed. Make sure Python has internet access.")
+        raise SystemExit(1) from exc
+
+
+_ensure_dependencies()
+
 import json
 import logging
 import os
