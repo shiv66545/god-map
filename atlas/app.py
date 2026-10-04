@@ -10,6 +10,7 @@ import os
 import re
 import threading
 import time
+import webbrowser
 from collections import OrderedDict
 
 import requests
@@ -222,5 +223,18 @@ def nearby():
     return jsonify(data)
 
 
-if __name__ == "__main__":  # dev only; production uses gunicorn
-    app.run(debug=os.getenv("FLASK_DEBUG") == "1", port=int(os.getenv("PORT", "8000")))
+if __name__ == "__main__":
+    # Local: double-click app.py and the browser opens automatically.
+    # Render/other hosts: bind to all interfaces and let the platform control the port.
+    port = int(os.getenv("PORT", "8000"))
+    is_hosted = bool(os.getenv("RENDER") or os.getenv("DYNO") or os.getenv("RAILWAY_ENVIRONMENT"))
+    host = "0.0.0.0" if is_hosted else "127.0.0.1"
+    debug = os.getenv("FLASK_DEBUG") == "1"
+
+    if not is_hosted and not debug:
+        threading.Timer(1.2, lambda: webbrowser.open(f"http://{host}:{port}/")).start()
+        print(f"\\nGod Map is running at http://{host}:{port}/")
+        print("Keep this window open while using the map.")
+        print("Press Ctrl+C to stop God Map.\\n")
+
+    app.run(debug=debug, host=host, port=port, use_reloader=False)
