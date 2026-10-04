@@ -1,0 +1,997 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Atlas — Explore the map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <style>
+    :root { color-scheme: light; --ink: #17231f; --muted: #718078; --green: #167553; --line: #e6ebe7; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .app { height: 100vh; min-height: 560px; display: grid; grid-template-columns: 370px 1fr; }
+    aside { z-index: 500; display: flex; flex-direction: column; background: #fff; border-right: 1px solid var(--line); box-shadow: 4px 0 22px #14251b0b; }
+    header { padding: 24px 24px 19px; border-bottom: 1px solid var(--line); }
+    .brand { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 750; letter-spacing: -.6px; }
+    .brand-mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 11px; background: #e4f3eb; color: var(--green); }
+    .brand-mark svg { width: 20px; height: 20px; }
+    .tagline { margin: 8px 0 0 44px; color: var(--muted); font-size: 13px; }
+    .panel { padding: 22px 20px; overflow: auto; }
+    .section-title { margin: 0 0 13px; font-size: 14px; font-weight: 700; }
+    .search-row { display: flex; gap: 8px; }
+    .search-area { position: relative; }
+    .suggestions { position: absolute; z-index: 700; top: 49px; left: 0; right: 52px; display: none; max-height: 260px; overflow: auto; border: 1px solid var(--line); border-radius: 11px; background: #fff; box-shadow: 0 12px 28px #14251b1c; }
+    .suggestion { display: block; width: 100%; padding: 11px 13px; border-bottom: 1px solid #eef1ef; background: #fff; color: var(--ink); text-align: left; font-size: 12px; line-height: 1.4; }
+    .suggestion:last-child { border-bottom: 0; }
+    .suggestion:hover { background: #f3f8f5; }
+    .actions-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 9px; }
+    .actions-row .secondary { margin-top: 0; }
+    .saved-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .saved-place { display: flex; align-items: center; overflow: hidden; border: 1px solid #dce9e0; border-radius: 999px; background: #f5faf7; }
+    .saved-chip { max-width: 210px; padding: 6px 9px; overflow: hidden; background: transparent; color: #285d43; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+    .saved-chip:hover, .saved-remove:hover { background: #e8f4ec; }
+    .saved-remove { padding: 5px 8px; background: transparent; color: #718078; font-size: 13px; }
+    .nearby-tools { display: grid; grid-template-columns: 1fr auto; gap: 7px; margin-top: 10px; }
+    .nearby-tools select { min-width: 0; height: 40px; padding: 0 9px; border: 1px solid #dfe6e1; border-radius: 9px; background: #fff; color: var(--ink); font: inherit; font-size: 12px; }
+    .nearby-tools button, .small-action { padding: 0 11px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: #34443b; font-size: 12px; font-weight: 600; }
+    .nearby-tools button:hover, .small-action:hover { background: #f4f7f5; }
+    .nearby-list { display: grid; gap: 5px; margin-top: 8px; }
+    .nearby-place { display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid #edf0ee; border-radius: 8px; background: #fbfcfb; color: var(--ink); text-align: left; }
+    .nearby-place strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+    .nearby-place span { flex: 0 0 auto; color: var(--muted); font-size: 10px; }
+    .map-tools { position: absolute; z-index: 400; top: 14px; left: 14px; display: flex; flex-wrap: wrap; gap: 6px; max-width: calc(100% - 28px); }
+    .map-tools button { padding: 8px 9px; border: 1px solid #e3e9e5; border-radius: 9px; background: #fff; color: #26352c; box-shadow: 0 2px 10px #18271d17; font-size: 11px; font-weight: 650; }
+    .map-tools button:hover, .map-tools button.active { background: #eaf5ee; color: #167553; }
+    .field-notes { margin-top: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: #fbfcfb; }
+    .field-notes h3 { margin: 0 0 8px; font-size: 12px; }
+    .field-notes input { height: 38px; font-size: 12px; }
+    .note-list { display: grid; gap: 5px; margin-top: 8px; }
+    .note-row { display: flex; align-items: center; gap: 6px; }
+    .note-open { flex: 1; min-width: 0; overflow: hidden; padding: 7px 8px; border-radius: 7px; background: #fff; color: #34443b; text-align: left; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+    .note-delete { padding: 5px 8px; border-radius: 7px; background: #fff; color: #a14b3d; }
+    .note-export { width: 100%; margin-top: 7px; padding: 7px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: #34443b; font-size: 11px; font-weight: 600; }
+    .measure-status { position: absolute; z-index: 400; top: 63px; left: 14px; padding: 8px 10px; border: 1px solid #e3e9e5; border-radius: 9px; background: #fff; color: #26352c; box-shadow: 0 2px 10px #18271d17; font-size: 11px; }
+    .route-actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; margin-top: 8px; }
+    .route-actions .small-action { height: 36px; }
+    .trip-planner { margin-top: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: #fbfcfb; }
+    .trip-planner h3 { margin: 0 0 8px; font-size: 12px; }
+    .trip-save-row { display: grid; grid-template-columns: 1fr 76px; gap: 7px; }
+    .trip-save-row input { height: 38px; font-size: 12px; }
+    .trip-save-row button, .trip-actions button { border: 1px solid var(--line); border-radius: 8px; background: #fff; color: #34443b; font-size: 11px; font-weight: 650; }
+    .trip-save-row button:hover, .trip-actions button:hover { background: #f0f8f3; }
+    .trip-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 7px; }
+    .trip-actions button { min-height: 34px; }
+    .trip-list { display: grid; gap: 6px; margin-top: 8px; }
+    .trip-row { display: flex; align-items: center; gap: 6px; }
+    .trip-open { flex: 1; min-width: 0; overflow: hidden; padding: 8px; border-radius: 7px; background: #fff; color: #34443b; text-align: left; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+    .trip-delete { padding: 6px 8px; border-radius: 7px; background: #fff; color: #a14b3d; }
+    .trip-empty { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
+    .waypoint-list { display: grid; gap: 7px; margin-top: 8px; }
+    .waypoint-row { display: flex; align-items: center; gap: 7px; }
+    .waypoint-row input { flex: 1; height: 40px; font-size: 12px; }
+    .waypoint-remove { flex: 0 0 34px; height: 34px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: #a14b3d; font-size: 18px; }
+    .waypoint-add { width: 100%; margin-top: 7px; padding: 8px; border: 1px dashed #b9c9bf; border-radius: 9px; background: #fbfcfb; color: #34443b; font-size: 11px; font-weight: 600; }
+    .waypoint-add:hover { background: #f0f8f3; }
+    .nearby-status { margin: 6px 1px 0; color: var(--muted); font-size: 11px; }
+    .route-options { display: grid; gap: 7px; margin-top: 10px; }
+    .route-option { display: flex; justify-content: space-between; gap: 8px; align-items: center; width: 100%; padding: 10px 11px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); text-align: left; }
+    .route-option.active { border-color: #61a782; background: #f0f8f3; box-shadow: 0 0 0 2px #16755312; }
+    .route-option strong { display: block; font-size: 12px; }
+    .route-option span { color: var(--muted); font-size: 11px; }
+    .route-steps { display: none; max-height: 260px; margin-top: 10px; overflow: auto; border: 1px solid var(--line); border-radius: 11px; }
+    .step { display: flex; gap: 10px; padding: 10px 11px; border-bottom: 1px solid #eef1ef; }
+    .step:last-child { border-bottom: 0; }
+    .step-icon { flex: 0 0 22px; color: var(--green); font-size: 16px; text-align: center; }
+    .step strong { display: block; font-size: 11px; font-weight: 650; }
+    .step span { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+    input { width: 100%; min-width: 0; height: 44px; padding: 0 12px; border: 1px solid #dfe6e1; border-radius: 10px; color: var(--ink); background: white; font: inherit; font-size: 13px; outline: none; }
+    input:focus { border-color: #69a98b; box-shadow: 0 0 0 3px #16755314; }
+    button { border: 0; cursor: pointer; font: inherit; }
+    .icon-button { flex: 0 0 44px; display: grid; place-items: center; height: 44px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); }
+    .icon-button:hover, .secondary:hover { background: #f4f7f5; }
+    .icon-button svg { width: 18px; height: 18px; }
+    .hint { margin: 9px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .divider { height: 1px; margin: 21px 0; background: var(--line); }
+    .route-fields { position: relative; display: grid; gap: 10px; }
+    .route-fields:before { position: absolute; z-index: 1; left: 16px; top: 37px; height: 21px; border-left: 1px dashed #a8b5ad; content: ""; }
+    .field-wrap { position: relative; }
+    .field-dot { position: absolute; z-index: 2; left: 13px; top: 16px; width: 8px; height: 8px; border: 2px solid #fff; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 1px var(--green); }
+    .field-dot.end { background: #e66c4d; box-shadow: 0 0 0 1px #e66c4d; }
+    .route-fields input { padding-left: 34px; }
+    .primary, .secondary { height: 43px; border-radius: 10px; font-size: 13px; font-weight: 650; }
+    .primary { width: 100%; margin-top: 12px; background: var(--green); color: white; }
+    .primary:hover { background: #105f42; }
+    .primary:disabled { cursor: wait; opacity: .65; }
+    .secondary { width: 100%; margin-top: 9px; border: 1px solid var(--line); background: #fff; color: #34443b; }
+    .status { min-height: 19px; margin: 11px 1px 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .status.error { color: #b43e31; }
+    .result { display: none; padding: 13px 14px; border: 1px solid var(--line); border-radius: 12px; background: #f8faf8; }
+    .result strong { display: block; font-size: 14px; }
+    .result span { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
+    .footer { margin-top: auto; padding: 14px 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; line-height: 1.55; }
+    .map-wrap { position: relative; min-width: 0; }
+    #map { width: 100%; height: 100%; background: #e8eee9; }
+    .map-note { position: absolute; z-index: 400; left: 16px; bottom: 24px; max-width: min(360px, calc(100% - 32px)); padding: 9px 12px; border: 1px solid #e8ece9; border-radius: 10px; background: #ffffffed; color: #68756d; box-shadow: 0 3px 14px #18271d12; font-size: 11px; }
+    .leaflet-control-zoom a { color: #26352c !important; }
+    @media (max-width: 720px) {
+      .app { height: 100dvh; min-height: 0; grid-template-columns: 1fr; grid-template-rows: minmax(270px, 42vh) 1fr; }
+      .map-wrap { grid-row: 1; }
+      aside { grid-row: 2; border: 0; box-shadow: 0 -4px 22px #14251b0b; }
+      header { padding: 12px 17px 10px; }
+      .brand { font-size: 17px; }
+      .brand-mark { width: 29px; height: 29px; }
+      .tagline { display: none; }
+      .panel { padding: 14px 17px; }
+      .divider { margin: 14px 0; }
+      .footer { padding: 8px 17px; }
+      .map-note { bottom: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <aside>
+      <header>
+        <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></span>Atlas</div>
+        <p class="tagline">Find your way, wherever you’re going.</p>
+      </header>
+      <section class="panel">
+        <h2 class="section-title">Explore a place</h2>
+        <div class="search-area">
+          <form id="search-form" class="search-row">
+            <input id="place-search" type="search" placeholder="Search a city, address, or place" aria-label="Search a place" autocomplete="off" required>
+            <button class="icon-button" type="submit" aria-label="Search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg></button>
+          </form>
+          <div id="suggestions" class="suggestions" role="listbox" aria-label="Place suggestions"></div>
+        </div>
+        <p class="hint">Search places, choose a suggestion, or click the map to set a destination.</p>
+        <div id="saved-list" class="saved-list" aria-label="Saved places"></div>
+        <section class="field-notes" aria-label="Field notebook">
+          <h3>Field notebook</h3>
+          <input id="note-text" maxlength="160" placeholder="Write a note, then click Add note on the map" aria-label="Map note text">
+          <div id="note-list" class="note-list"></div>
+          <button id="export-notes" class="note-export" type="button">Export notes as GeoJSON</button>
+        </section>
+        <div class="nearby-tools">
+          <select id="nearby-category" aria-label="Nearby place category">
+            <option value="amenity:cafe">Cafes</option>
+            <option value="amenity:restaurant">Restaurants</option>
+            <option value="leisure:park">Parks</option>
+            <option value="amenity:fuel">Fuel stations</option>
+            <option value="shop:supermarket">Supermarkets</option>
+          </select>
+          <button id="nearby-button" type="button">Explore nearby</button>
+        </div>
+        <div id="nearby-status" class="nearby-status" aria-live="polite"></div>
+        <div id="nearby-list" class="nearby-list" aria-label="Nearby places"></div>
+        <div class="divider"></div>
+        <h2 class="section-title">Get directions</h2>
+        <div class="route-fields">
+          <div class="field-wrap"><span class="field-dot"></span><input id="origin" placeholder="Starting point" aria-label="Starting point"></div>
+          <div class="field-wrap"><span class="field-dot end"></span><input id="destination" placeholder="Destination" aria-label="Destination"></div>
+        </div>
+        <div id="waypoint-list" class="waypoint-list" aria-label="Intermediate route stops"></div>
+        <button id="add-waypoint" class="waypoint-add" type="button">＋ Add stop (up to 5)</button>
+        <button id="route-button" class="primary" type="button">Find driving route</button>
+        <div class="route-actions">
+          <button id="swap-button" class="small-action" type="button">⇅ Swap</button>
+          <button id="share-button" class="small-action" type="button">↗ Share</button>
+          <button id="clear-button" class="small-action" type="button">Clear</button>
+        </div>
+        <section class="trip-planner" aria-label="Saved trip library">
+          <h3>Trip library</h3>
+          <div class="trip-save-row">
+            <input id="trip-name" maxlength="60" placeholder="Name this itinerary" aria-label="Trip name">
+            <button id="save-trip" type="button">Save trip</button>
+          </div>
+          <div id="trip-list" class="trip-list"></div>
+          <div class="trip-actions">
+            <button id="export-trips" type="button">Export trips</button>
+            <button id="import-trips-button" type="button">Import trips</button>
+            <input id="import-trips-file" type="file" accept="application/json,.json" hidden>
+          </div>
+        </section>
+        <div class="actions-row">
+          <button id="locate-button" class="secondary" type="button">◎ &nbsp; My location</button>
+          <button id="save-button" class="secondary" type="button">☆ &nbsp; Save place</button>
+        </div>
+        <p id="status" class="status" role="status" aria-live="polite">Map centered on New York City. Search or click the map to get started.</p>
+        <div id="result" class="result"><strong id="route-distance"></strong><span>Estimated driving distance · approximate time</span></div>
+        <div id="route-options" class="route-options" aria-label="Route options"></div>
+        <div id="route-steps" class="route-steps" aria-label="Turn-by-turn directions"></div>
+      </section>
+      <div class="footer">Street data © OpenStreetMap contributors · Satellite imagery © Esri and partners. Search and routing use public services with usage limits.</div>
+    </aside>
+    <section class="map-wrap" aria-label="Interactive map">
+      <div id="map"></div>
+      <div class="map-tools" aria-label="Map actions">
+        <button id="click-destination" class="active" type="button">Set destination</button>
+        <button id="click-origin" type="button">Set start</button>
+        <button id="note-mode" type="button">Add note</button>
+        <button id="measure-mode" type="button">Measure</button>
+        <button id="clear-measure" type="button">Clear measure</button>
+        <button id="tracking-button" type="button">Start GPS track</button>
+        <button id="export-track" type="button">Export GPX</button>
+        <button id="fullscreen-button" type="button">⛶ Fullscreen</button>
+      </div>
+      <div class="measure-status" id="measure-status" hidden>Click the map to measure a path</div>
+      <div class="map-note" id="map-note">Click the map to choose a destination</div>
+    </section>
+  </main>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script>
+    const map = L.map('map', { zoomControl: false }).setView([40.7128, -74.0060], 12);
+    const streetLayer = L.tileLayer('__TILE_URL__', {
+      maxZoom: 19,
+      attribution: __TILE_ATTR__
+    });
+    const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19,
+      attribution: 'Imagery &copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+    });
+    streetLayer.addTo(map);
+    L.control.layers({ 'Street map': streetLayer, 'Satellite imagery': satelliteLayer }, null, { position: 'topright' }).addTo(map);
+    L.control.zoom({ position: 'topright' }).addTo(map);
+    L.control.scale({ imperial: true, metric: true, position: 'bottomright' }).addTo(map);
+
+    const statusBox = document.getElementById('status');
+    const resultBox = document.getElementById('result');
+    const originInput = document.getElementById('origin');
+    const destinationInput = document.getElementById('destination');
+    let destinationMarker = null;
+    let originMarker = null;
+    let routeLayers = [];
+    let currentLocation = null;
+    let locationMarker = null;
+    let gpsWatchId = null;
+    let gpsTrack = [];
+    let gpsTrackLayer = L.layerGroup().addTo(map);
+    let gpsTrackLine = null;
+    let gpsAccuracyCircle = null;
+    let suggestionTimer = null;
+    let suggestionRequest = null;
+    let clickMode = 'destination';
+    let nearbyLayer = L.layerGroup().addTo(map);
+    let nearbyRequest = null;
+    let noteLayer = L.layerGroup().addTo(map);
+    let measurementLayer = L.layerGroup().addTo(map);
+    let measurementPoints = [];
+    let measurementLine = null;
+    let savedNotes = [];
+    try { savedNotes = JSON.parse(localStorage.getItem('atlas-field-notes') || '[]'); } catch (_) { savedNotes = []; }
+    if (!Array.isArray(savedNotes)) savedNotes = [];
+    let savedPlaces = [];
+    try { savedPlaces = JSON.parse(localStorage.getItem('atlas-saved-places') || '[]'); } catch (_) { savedPlaces = []; }
+    if (!Array.isArray(savedPlaces)) savedPlaces = [];
+    let savedTrips = [];
+    try { savedTrips = JSON.parse(localStorage.getItem('atlas-saved-trips') || '[]'); } catch (_) { savedTrips = []; }
+    if (!Array.isArray(savedTrips)) savedTrips = [];
+    savedTrips = savedTrips.filter((trip) => trip && typeof trip.name === 'string' && typeof trip.origin === 'string' && typeof trip.destination === 'string' && Array.isArray(trip.stops) && trip.stops.length <= 5 && trip.stops.every((stop) => typeof stop === 'string')).slice(0, 50);
+
+    function setStatus(message, isError = false) {
+      statusBox.textContent = message;
+      statusBox.classList.toggle('error', isError);
+    }
+
+    async function geocode(query, limit = 1) {
+      const url = `/api/geocode?limit=${limit}&q=${encodeURIComponent(query)}`;
+      const response = await fetch(url, { headers: { Accept: 'application/json' } });
+      if (response.status === 429) throw new Error('Too many searches. Please wait a moment.');
+      if (!response.ok) throw new Error('Place search is temporarily unavailable. Please try again.');
+      const results = await response.json();
+      if (!results.length) throw new Error(`No results found for “${query}”.`);
+      return results.map((result) => ({ lat: Number(result.lat), lon: Number(result.lon), name: result.display_name }));
+    }
+
+    function clearRoutes() {
+      routeLayers.forEach((layer) => layer.remove());
+      routeLayers = [];
+      document.getElementById('route-options').replaceChildren();
+      document.getElementById('route-steps').replaceChildren();
+      document.getElementById('route-steps').style.display = 'none';
+      resultBox.style.display = 'none';
+    }
+    originInput.addEventListener('input', clearRoutes);
+    destinationInput.addEventListener('input', clearRoutes);
+
+    function showDestination(place) {
+      const point = [place.lat, place.lon];
+      if (destinationMarker) destinationMarker.remove();
+      const popup = document.createElement('span');
+      popup.textContent = place.name || 'Selected destination';
+      destinationMarker = L.marker(point).addTo(map).bindPopup(popup);
+      map.setView(point, Math.max(map.getZoom(), 14));
+      destinationInput.value = place.name || `${place.lat.toFixed(5)}, ${place.lon.toFixed(5)}`;
+      clearRoutes();
+    }
+
+    function renderSavedPlaces() {
+      const list = document.getElementById('saved-list');
+      list.replaceChildren();
+      savedPlaces.forEach((place, index) => {
+        if (!place || typeof place.name !== 'string' || !Number.isFinite(place.lat) || !Number.isFinite(place.lon)) return;
+        const wrapper = document.createElement('span');
+        wrapper.className = 'saved-place';
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'saved-chip';
+        chip.textContent = place.name.split(',')[0] || place.name;
+        chip.title = `${place.name} · click to open`;
+        chip.addEventListener('click', () => {
+          showDestination(place);
+          setStatus(`Showing saved place: ${place.name}`);
+        });
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'saved-remove';
+        remove.textContent = '×';
+        remove.setAttribute('aria-label', `Remove ${place.name} from saved places`);
+        remove.addEventListener('click', () => {
+          savedPlaces.splice(index, 1);
+          try { localStorage.setItem('atlas-saved-places', JSON.stringify(savedPlaces)); } catch (_) {}
+          renderSavedPlaces();
+        });
+        wrapper.append(chip, remove);
+        list.appendChild(wrapper);
+      });
+    }
+    renderSavedPlaces();
+
+    function renderFieldNotes() {
+      const list = document.getElementById('note-list');
+      list.replaceChildren();
+      noteLayer.clearLayers();
+      savedNotes.forEach((note, index) => {
+        if (!note || typeof note.text !== 'string' || !Number.isFinite(note.lat) || !Number.isFinite(note.lon)) return;
+        const markerLabel = document.createElement('strong');
+        markerLabel.textContent = note.text;
+        L.marker([note.lat, note.lon]).bindPopup(markerLabel).addTo(noteLayer);
+        const row = document.createElement('div');
+        row.className = 'note-row';
+        const open = document.createElement('button');
+        open.type = 'button';
+        open.className = 'note-open';
+        open.textContent = note.text;
+        open.title = `${note.text} · ${note.lat.toFixed(5)}, ${note.lon.toFixed(5)}`;
+        open.addEventListener('click', () => {
+          map.setView([note.lat, note.lon], Math.max(map.getZoom(), 16));
+          setStatus(`Opened field note: ${note.text}`);
+        });
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'note-delete';
+        remove.textContent = '×';
+        remove.setAttribute('aria-label', `Delete note: ${note.text}`);
+        remove.addEventListener('click', () => {
+          savedNotes.splice(index, 1);
+          try { localStorage.setItem('atlas-field-notes', JSON.stringify(savedNotes)); } catch (_) {}
+          renderFieldNotes();
+        });
+        row.append(open, remove);
+        list.appendChild(row);
+      });
+    }
+    renderFieldNotes();
+
+    document.getElementById('export-notes').addEventListener('click', () => {
+      const features = savedNotes.filter((note) => note && typeof note.text === 'string' && Number.isFinite(note.lat) && Number.isFinite(note.lon)).map((note) => ({
+        type: 'Feature',
+        properties: { name: note.text, createdAt: note.createdAt || null },
+        geometry: { type: 'Point', coordinates: [note.lon, note.lat] }
+      }));
+      const blob = new Blob([JSON.stringify({ type: 'FeatureCollection', features }, null, 2)], { type: 'application/geo+json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'atlas-field-notes.geojson';
+      link.click();
+      URL.revokeObjectURL(url);
+      setStatus(`Exported ${features.length} field note${features.length === 1 ? '' : 's'} as GeoJSON.`);
+    });
+
+    const searchInput = document.getElementById('place-search');
+    const suggestionsBox = document.getElementById('suggestions');
+    searchInput.addEventListener('input', () => {
+      clearTimeout(suggestionTimer);
+      if (suggestionRequest) suggestionRequest.abort();
+      const query = searchInput.value.trim();
+      suggestionsBox.replaceChildren();
+      suggestionsBox.style.display = 'none';
+      if (query.length < 3) return;
+      suggestionTimer = setTimeout(async () => {
+        suggestionRequest = new AbortController();
+        try {
+          const response = await fetch(`/api/geocode?limit=5&q=${encodeURIComponent(query)}`, { headers: { Accept: 'application/json' }, signal: suggestionRequest.signal });
+          if (!response.ok) return;
+          const results = await response.json();
+          if (searchInput.value.trim() !== query) return;
+          results.forEach((item) => {
+            const place = { lat: Number(item.lat), lon: Number(item.lon), name: item.display_name };
+            const option = document.createElement('button');
+            option.type = 'button';
+            option.className = 'suggestion';
+            option.setAttribute('role', 'option');
+            option.textContent = place.name;
+            option.addEventListener('click', () => {
+              showDestination(place);
+              searchInput.value = place.name;
+              suggestionsBox.style.display = 'none';
+              setStatus(`Showing ${place.name}`);
+            });
+            suggestionsBox.appendChild(option);
+          });
+          suggestionsBox.style.display = results.length ? 'block' : 'none';
+        } catch (error) {
+          if (error.name !== 'AbortError') console.warn('Place suggestions unavailable.', error);
+        }
+      }, 1000);
+    });
+    document.addEventListener('click', (event) => {
+      if (!event.target.closest('.search-area')) suggestionsBox.style.display = 'none';
+    });
+
+    document.getElementById('search-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const query = searchInput.value.trim();
+      if (!query) return;
+      suggestionsBox.style.display = 'none';
+      setStatus('Searching for place…');
+      try {
+        const [place] = await geocode(query);
+        showDestination(place);
+        setStatus(`Showing ${place.name}`);
+      } catch (error) { setStatus(error.message, true); }
+    });
+
+    document.getElementById('save-button').addEventListener('click', () => {
+      if (!destinationMarker) { setStatus('Choose a destination before saving it.', true); return; }
+      const place = { name: destinationInput.value, lat: destinationMarker.getLatLng().lat, lon: destinationMarker.getLatLng().lng };
+      if (savedPlaces.some((saved) => Math.abs(saved.lat - place.lat) < 0.0001 && Math.abs(saved.lon - place.lon) < 0.0001)) {
+        setStatus('That place is already saved.');
+        return;
+      }
+      savedPlaces.unshift(place);
+      savedPlaces = savedPlaces.slice(0, 12);
+      try { localStorage.setItem('atlas-saved-places', JSON.stringify(savedPlaces)); } catch (_) {}
+      renderSavedPlaces();
+      setStatus('Place saved on this device.');
+    });
+
+    map.on('click', (event) => {
+      const point = { lat: event.latlng.lat, lon: event.latlng.lng };
+      if (clickMode === 'measure') {
+        measurementPoints.push(point);
+        if (measurementLine) measurementLayer.removeLayer(measurementLine);
+        measurementLine = L.polyline(measurementPoints.map((item) => [item.lat, item.lon]), { color: '#d26a45', weight: 4, dashArray: '7 7' }).addTo(measurementLayer);
+        L.circleMarker([point.lat, point.lon], { radius: 5, color: '#fff', weight: 2, fillColor: '#d26a45', fillOpacity: 1 }).addTo(measurementLayer);
+        const total = measurementPoints.slice(1).reduce((sum, item, index) => sum + distanceInMeters(measurementPoints[index], item), 0);
+        const distanceText = total < 1000 ? `${Math.round(total)} m` : `${(total / 1000).toFixed(2)} km`;
+        document.getElementById('measure-status').textContent = `${measurementPoints.length} points · ${distanceText} straight-line distance`;
+        setStatus(`Measured path: ${distanceText} straight-line distance.`);
+        return;
+      }
+      if (clickMode === 'note') {
+        const input = document.getElementById('note-text');
+        const text = input.value.trim();
+        if (!text) { setStatus('Enter a short field note before placing it.', true); input.focus(); return; }
+        savedNotes.unshift({ text, lat: point.lat, lon: point.lon, createdAt: new Date().toISOString() });
+        savedNotes = savedNotes.slice(0, 100);
+        try { localStorage.setItem('atlas-field-notes', JSON.stringify(savedNotes)); } catch (_) {}
+        input.value = '';
+        renderFieldNotes();
+        setStatus(`Field note placed at ${point.lat.toFixed(5)}, ${point.lon.toFixed(5)}.`);
+        return;
+      }
+      if (clickMode === 'origin') {
+        originInput.value = `${point.lat.toFixed(5)}, ${point.lon.toFixed(5)}`;
+        if (originMarker) originMarker.remove();
+        originMarker = L.marker([point.lat, point.lon]).addTo(map).bindPopup('Route starting point');
+        clearRoutes();
+        setStatus('Starting point set from the map. Choose a destination to get directions.');
+        return;
+      }
+      const place = { ...point, name: `${point.lat.toFixed(5)}, ${point.lon.toFixed(5)}` };
+      showDestination(place);
+      setStatus('Destination set from the map. Add a starting point to get directions.');
+    });
+
+    document.getElementById('locate-button').addEventListener('click', () => {
+      if (!navigator.geolocation) { setStatus('Location is not available in this browser.', true); return; }
+      setStatus('Finding your location…');
+      navigator.geolocation.getCurrentPosition((position) => {
+        currentLocation = { lat: position.coords.latitude, lon: position.coords.longitude };
+        originInput.value = `${currentLocation.lat.toFixed(5)}, ${currentLocation.lon.toFixed(5)}`;
+        clearRoutes();
+        if (locationMarker) locationMarker.remove();
+        locationMarker = L.circleMarker([currentLocation.lat, currentLocation.lon], { radius: 8, color: '#fff', weight: 3, fillColor: '#167553', fillOpacity: 1 }).addTo(map).bindPopup('Your location');
+        map.setView([currentLocation.lat, currentLocation.lon], 14);
+        setStatus('Location found. Choose a destination to get directions.');
+      }, () => setStatus('Could not access your location. Check browser location permissions.', true), { enableHighAccuracy: true, timeout: 10000 });
+    });
+
+    const trackingButton = document.getElementById('tracking-button');
+    trackingButton.addEventListener('click', () => {
+      if (gpsWatchId !== null) {
+        navigator.geolocation.clearWatch(gpsWatchId);
+        gpsWatchId = null;
+        trackingButton.textContent = 'Resume GPS track';
+        trackingButton.classList.remove('active');
+        setStatus(`GPS tracking paused · ${gpsTrack.length} recorded points remain in this session.`);
+        return;
+      }
+      if (!navigator.geolocation) { setStatus('GPS tracking is unavailable in this browser.', true); return; }
+      trackingButton.textContent = 'Stop GPS track';
+      trackingButton.classList.add('active');
+      setStatus('Requesting location access to start GPS tracking…');
+      gpsWatchId = navigator.geolocation.watchPosition((position) => {
+        const point = {
+          lat: position.coords.latitude,
+          lon: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          elevation: position.coords.altitude,
+          time: new Date(position.timestamp).toISOString()
+        };
+        const previous = gpsTrack[gpsTrack.length - 1];
+        if (!previous || distanceInMeters(previous, point) >= 3 || Date.now() - Date.parse(previous.time) >= 15000) {
+          gpsTrack.push(point);
+          if (gpsTrack.length > 10000) gpsTrack.shift();
+          if (gpsTrackLine) gpsTrackLine.setLatLngs(gpsTrack.map((item) => [item.lat, item.lon]));
+          else gpsTrackLine = L.polyline([[point.lat, point.lon]], { color: '#7557b7', weight: 5, opacity: .85 }).addTo(gpsTrackLayer);
+        }
+        currentLocation = { lat: point.lat, lon: point.lon };
+        if (locationMarker) locationMarker.setLatLng([point.lat, point.lon]);
+        else locationMarker = L.circleMarker([point.lat, point.lon], { radius: 8, color: '#fff', weight: 3, fillColor: '#167553', fillOpacity: 1 }).addTo(map);
+        if (gpsAccuracyCircle) gpsAccuracyCircle.setLatLng([point.lat, point.lon]).setRadius(point.accuracy);
+        else gpsAccuracyCircle = L.circle([point.lat, point.lon], { radius: point.accuracy, color: '#167553', weight: 1, fillColor: '#167553', fillOpacity: .08 }).addTo(map);
+        originInput.value = `${point.lat.toFixed(5)}, ${point.lon.toFixed(5)}`;
+        setStatus(`GPS tracking · accuracy ±${Math.round(point.accuracy)} m · ${gpsTrack.length} track points.`);
+      }, (error) => {
+        navigator.geolocation.clearWatch(gpsWatchId);
+        gpsWatchId = null;
+        trackingButton.textContent = 'Start GPS track';
+        trackingButton.classList.remove('active');
+        const message = error.code === 1 ? 'Location permission was denied.' : 'GPS location is temporarily unavailable.';
+        setStatus(message, true);
+      }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 });
+    });
+
+    document.getElementById('export-track').addEventListener('click', () => {
+      if (!gpsTrack.length) { setStatus('Start GPS tracking before exporting a GPX track.', true); return; }
+      const points = gpsTrack.map((point) => {
+        const elevation = Number.isFinite(point.elevation) ? `<ele>${point.elevation.toFixed(1)}</ele>` : '';
+        return `<trkpt lat="${point.lat.toFixed(7)}" lon="${point.lon.toFixed(7)}">${elevation}<time>${point.time}</time></trkpt>`;
+      }).join('');
+      const gpx = `<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="Atlas" xmlns="http://www.topografix.com/GPX/1/1"><trk><name>Atlas GPS track</name><trkseg>${points}</trkseg></trk></gpx>`;
+      const url = URL.createObjectURL(new Blob([gpx], { type: 'application/gpx+xml' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'atlas-track.gpx';
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setStatus(`Exported ${gpsTrack.length} GPS points as GPX. Track data stayed in this browser.`);
+    });
+    window.addEventListener('beforeunload', () => {
+      if (gpsWatchId !== null) navigator.geolocation.clearWatch(gpsWatchId);
+    });
+
+    async function resolveEndpoint(value, fallback) {
+      if (!value.trim()) {
+        if (fallback) return fallback;
+        throw new Error('Enter both a starting point and a destination.');
+      }
+      const coordinateMatch = value.trim().match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+      if (coordinateMatch) {
+        const lat = Number(coordinateMatch[1]);
+        const lon = Number(coordinateMatch[2]);
+        if (lat < -90 || lat > 90 || lon < -180 || lon > 180) throw new Error('Coordinates must be within valid latitude/longitude ranges.');
+        return { lat, lon };
+      }
+      const [place] = await geocode(value.trim());
+      return place;
+    }
+
+    const waypointList = document.getElementById('waypoint-list');
+    const addWaypointButton = document.getElementById('add-waypoint');
+
+    function getWaypointInputs() {
+      return [...waypointList.querySelectorAll('input')];
+    }
+
+    function addWaypoint(value = '') {
+      const inputs = getWaypointInputs();
+      if (inputs.length >= 5) {
+        setStatus('A route can have up to five intermediate stops.', true);
+        return;
+      }
+      const row = document.createElement('div');
+      row.className = 'waypoint-row';
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.placeholder = `Stop ${inputs.length + 1}`;
+      input.setAttribute('aria-label', `Intermediate stop ${inputs.length + 1}`);
+      input.value = value;
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'waypoint-remove';
+      remove.textContent = '×';
+      remove.setAttribute('aria-label', 'Remove this stop');
+      remove.addEventListener('click', () => {
+        row.remove();
+        getWaypointInputs().forEach((field, index) => {
+          field.placeholder = `Stop ${index + 1}`;
+          field.setAttribute('aria-label', `Intermediate stop ${index + 1}`);
+        });
+        clearRoutes();
+      });
+      input.addEventListener('input', clearRoutes);
+      row.append(input, remove);
+      waypointList.appendChild(row);
+      clearRoutes();
+      input.focus();
+    }
+
+    addWaypointButton.addEventListener('click', () => addWaypoint());
+
+    const tripList = document.getElementById('trip-list');
+    const tripNameInput = document.getElementById('trip-name');
+
+    function persistTrips() {
+      try {
+        localStorage.setItem('atlas-saved-trips', JSON.stringify(savedTrips));
+        return true;
+      } catch (_) {
+        setStatus('Could not save trips in this browser. Check available local storage.', true);
+        return false;
+      }
+    }
+
+    function renderTrips() {
+      tripList.replaceChildren();
+      if (!savedTrips.length) {
+        const empty = document.createElement('p');
+        empty.className = 'trip-empty';
+        empty.textContent = 'Saved itineraries stay on this device.';
+        tripList.appendChild(empty);
+        return;
+      }
+      savedTrips.forEach((trip, index) => {
+        const row = document.createElement('div');
+        row.className = 'trip-row';
+        const open = document.createElement('button');
+        open.type = 'button';
+        open.className = 'trip-open';
+        open.textContent = `${trip.name} · ${1 + trip.stops.length} legs`;
+        open.title = `${trip.origin} → ${trip.stops.length ? `${trip.stops.join(' → ')} → ` : ''}${trip.destination}`;
+        open.addEventListener('click', () => {
+          originInput.value = trip.origin;
+          destinationInput.value = trip.destination;
+          waypointList.replaceChildren();
+          trip.stops.forEach((stop) => addWaypoint(stop));
+          clearRoutes();
+          tripNameInput.value = trip.name;
+          setStatus(`Loaded itinerary “${trip.name}”. Finding directions…`);
+          document.getElementById('route-button').click();
+        });
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'trip-delete';
+        remove.textContent = '×';
+        remove.setAttribute('aria-label', `Delete itinerary ${trip.name}`);
+        remove.addEventListener('click', () => {
+          savedTrips.splice(index, 1);
+          if (persistTrips()) renderTrips();
+        });
+        row.append(open, remove);
+        tripList.appendChild(row);
+      });
+    }
+    renderTrips();
+
+    document.getElementById('save-trip').addEventListener('click', () => {
+      const origin = originInput.value.trim();
+      const destination = destinationInput.value.trim();
+      const stops = getWaypointInputs().map((input) => input.value.trim());
+      if (!origin || !destination || stops.some((stop) => !stop)) {
+        setStatus('Enter the start, destination, and every intermediate stop before saving.', true);
+        return;
+      }
+      if (savedTrips.length >= 50) {
+        setStatus('The trip library holds up to 50 itineraries. Delete one before saving another.', true);
+        return;
+      }
+      const name = tripNameInput.value.trim() || `Trip ${new Date().toLocaleDateString()}`;
+      savedTrips.unshift({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name: name.slice(0, 60), origin: origin.slice(0, 300), destination: destination.slice(0, 300), stops: stops.map((stop) => stop.slice(0, 300)), savedAt: new Date().toISOString() });
+      if (persistTrips()) {
+        renderTrips();
+        setStatus(`Saved itinerary “${name}” on this device.`);
+      }
+    });
+
+    document.getElementById('export-trips').addEventListener('click', () => {
+      const payload = { format: 'atlas-trip-library', version: 1, exportedAt: new Date().toISOString(), trips: savedTrips.map(({ name, origin, destination, stops, savedAt }) => ({ name, origin, destination, stops, savedAt })) };
+      const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'atlas-trips.json';
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setStatus(`Exported ${savedTrips.length} ${savedTrips.length === 1 ? 'itinerary' : 'itineraries'} as JSON.`);
+    });
+
+    const tripFileInput = document.getElementById('import-trips-file');
+    document.getElementById('import-trips-button').addEventListener('click', () => tripFileInput.click());
+    tripFileInput.addEventListener('change', async () => {
+      const file = tripFileInput.files[0];
+      tripFileInput.value = '';
+      if (!file) return;
+      if (file.size > 2 * 1024 * 1024) { setStatus('Trip file is too large (maximum 2 MB).', true); return; }
+      try {
+        const data = JSON.parse(await file.text());
+        const incoming = Array.isArray(data) ? data : data.trips;
+        if (!Array.isArray(incoming)) throw new Error('This file does not contain a trip list.');
+        const validTrips = incoming.filter((trip) => trip && typeof trip.name === 'string' && typeof trip.origin === 'string' && typeof trip.destination === 'string' && Array.isArray(trip.stops) && trip.stops.length <= 5 && trip.stops.every((stop) => typeof stop === 'string' && stop.trim()) && trip.name.trim() && trip.origin.trim() && trip.destination.trim() && [trip.name, trip.origin, trip.destination, ...trip.stops].every((value) => value.length <= 300))
+          .slice(0, Math.max(0, 50 - savedTrips.length))
+          .map((trip) => ({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name: trip.name.trim().slice(0, 60), origin: trip.origin.trim(), destination: trip.destination.trim(), stops: trip.stops.map((stop) => stop.trim()), savedAt: typeof trip.savedAt === 'string' ? trip.savedAt : new Date().toISOString() }));
+        if (!validTrips.length) throw new Error('No valid itineraries found, or the local library is full.');
+        savedTrips = [...validTrips, ...savedTrips].slice(0, 50);
+        if (persistTrips()) {
+          renderTrips();
+          setStatus(`Imported ${validTrips.length} ${validTrips.length === 1 ? 'itinerary' : 'itineraries'}.`);
+        }
+      } catch (error) {
+        setStatus(error.message || 'Could not read that trip file.', true);
+      }
+    });
+
+    document.getElementById('route-button').addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      const destinationText = destinationInput.value.trim();
+      if (!destinationText) { setStatus('Search for a place or click the map to choose a destination.', true); return; }
+      button.disabled = true;
+      clearRoutes();
+      setStatus('Finding route options…');
+      try {
+        const enteredStops = [originInput.value, ...getWaypointInputs().map((input) => input.value), destinationText];
+        if (enteredStops.slice(1).some((stop) => !stop.trim()) || (!originInput.value.trim() && !currentLocation)) throw new Error('Fill in every route stop, or remove the empty stop before continuing.');
+        const routeStops = await Promise.all(enteredStops.map((stop, index) => resolveEndpoint(stop, index === 0 ? currentLocation : null)));
+        const start = routeStops[0];
+        const end = routeStops[routeStops.length - 1];
+        const coordinates = routeStops.map((point) => `${point.lon},${point.lat}`).join(';');
+        const url = `/api/route?coords=${encodeURIComponent(coordinates)}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Routing is temporarily unavailable. Please try again.');
+        const data = await response.json();
+        if (data.code !== 'Ok' || !data.routes.length) throw new Error('No driving route found between those locations.');
+
+        const options = document.getElementById('route-options');
+        const routeButtons = [];
+        const selectRoute = (selectedIndex) => {
+          routeLayers.forEach((layer, index) => {
+            const active = index === selectedIndex;
+            layer.setStyle({ color: active ? '#167553' : '#779487', weight: active ? 6 : 4, opacity: active ? .95 : .55 });
+            if (active) layer.bringToFront();
+            routeButtons[index].classList.toggle('active', active);
+          });
+          const route = data.routes[selectedIndex];
+          const km = route.distance / 1000;
+          const minutes = Math.round(route.duration / 60);
+          const time = minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} hr ${minutes % 60} min`;
+          document.getElementById('route-distance').textContent = `${km < 1 ? `${Math.round(route.distance)} m` : `${km.toFixed(1)} km`} · ${time}`;
+          resultBox.style.display = 'block';
+          const stepsBox = document.getElementById('route-steps');
+          stepsBox.replaceChildren();
+          const steps = (route.legs || []).flatMap((leg) => leg.steps || []);
+          const icons = { left: '↰', right: '↱', straight: '↑', uturn: '↩', 'slight left': '↖', 'slight right': '↗' };
+          steps.forEach((step) => {
+            const maneuver = step.maneuver || {};
+            const type = (maneuver.type || 'continue').replaceAll('_', ' ');
+            const modifier = (maneuver.modifier || '').replaceAll('_', ' ');
+            let instruction = type === 'turn' ? `Turn ${modifier}` : type === 'depart' ? `Head ${modifier}` : type === 'arrive' ? 'Arrive at destination' : `${type.charAt(0).toUpperCase()}${type.slice(1)}${modifier ? ` ${modifier}` : ''}`;
+            if (step.name && type !== 'arrive') instruction += ` onto ${step.name}`;
+            const distance = step.distance >= 1000 ? `${(step.distance / 1000).toFixed(1)} km` : `${Math.round(step.distance)} m`;
+            const row = document.createElement('div');
+            row.className = 'step';
+            const icon = document.createElement('span');
+            icon.className = 'step-icon';
+            icon.setAttribute('aria-hidden', 'true');
+            icon.textContent = icons[modifier] || (type === 'arrive' ? '●' : '↑');
+            const text = document.createElement('div');
+            const title = document.createElement('strong');
+            title.textContent = instruction;
+            const detail = document.createElement('span');
+            detail.textContent = distance;
+            text.append(title, detail);
+            row.append(icon, text);
+            stepsBox.appendChild(row);
+          });
+          stepsBox.style.display = steps.length ? 'block' : 'none';
+          map.fitBounds(routeLayers[selectedIndex].getBounds(), { padding: [45, 45] });
+        };
+
+        data.routes.forEach((route, index) => {
+          const layer = L.geoJSON(route.geometry, { style: { color: '#779487', weight: 4, opacity: .55 } }).addTo(map);
+          routeLayers.push(layer);
+          const km = route.distance / 1000;
+          const minutes = Math.round(route.duration / 60);
+          const time = minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} hr ${minutes % 60} min`;
+          const option = document.createElement('button');
+          option.type = 'button';
+          option.className = 'route-option';
+          const label = document.createElement('strong');
+          label.textContent = index === 0 ? 'Recommended route' : `Alternative ${index}`;
+          const details = document.createElement('span');
+          details.textContent = `${km.toFixed(1)} km · ${time}`;
+          option.append(label, details);
+          option.addEventListener('click', () => selectRoute(index));
+          routeButtons.push(option);
+          options.appendChild(option);
+          layer.on('click', () => selectRoute(index));
+        });
+        selectRoute(0);
+        const routeUrl = new URL(window.location.href);
+        routeUrl.searchParams.set('from', `${start.lat},${start.lon}`);
+        routeUrl.searchParams.set('to', `${end.lat},${end.lon}`);
+        if (routeStops.length > 2) routeUrl.searchParams.set('via', JSON.stringify(routeStops.slice(1, -1).map((point) => `${point.lat},${point.lon}`)));
+        else routeUrl.searchParams.delete('via');
+        window.history.replaceState({}, '', routeUrl);
+        setStatus(`Found ${data.routes.length} route option${data.routes.length === 1 ? '' : 's'}. Travel times are estimates.`);
+      } catch (error) { setStatus(error.message, true); }
+      finally { button.disabled = false; }
+    });
+
+    function setClickMode(mode) {
+      clickMode = mode;
+      document.getElementById('click-destination').classList.toggle('active', mode === 'destination');
+      document.getElementById('click-origin').classList.toggle('active', mode === 'origin');
+      document.getElementById('note-mode').classList.toggle('active', mode === 'note');
+      document.getElementById('measure-mode').classList.toggle('active', mode === 'measure');
+      const instructions = {
+        destination: 'Click the map to choose a destination',
+        origin: 'Click the map to set your starting point',
+        note: 'Click the map to place your field note',
+        measure: 'Click map points to measure a path'
+      };
+      document.getElementById('map-note').textContent = instructions[mode];
+      document.getElementById('measure-status').hidden = mode !== 'measure';
+      if (mode === 'note') document.getElementById('note-text').focus();
+    }
+    document.getElementById('click-destination').addEventListener('click', () => setClickMode('destination'));
+    document.getElementById('click-origin').addEventListener('click', () => setClickMode('origin'));
+    document.getElementById('note-mode').addEventListener('click', () => setClickMode('note'));
+    document.getElementById('measure-mode').addEventListener('click', () => setClickMode('measure'));
+    document.getElementById('clear-measure').addEventListener('click', () => {
+      measurementPoints = [];
+      measurementLine = null;
+      measurementLayer.clearLayers();
+      document.getElementById('measure-status').textContent = 'Click the map to measure a path';
+      setStatus('Measurement cleared.');
+    });
+    document.getElementById('fullscreen-button').addEventListener('click', async () => {
+      const mapWrap = document.querySelector('.map-wrap');
+      try {
+        if (!document.fullscreenElement) await mapWrap.requestFullscreen();
+        else await document.exitFullscreen();
+        setTimeout(() => map.invalidateSize(), 150);
+      } catch (_) { setStatus('Fullscreen is unavailable in this browser.', true); }
+    });
+    document.addEventListener('fullscreenchange', () => setTimeout(() => map.invalidateSize(), 100));
+
+    document.getElementById('swap-button').addEventListener('click', () => {
+      const start = originInput.value;
+      originInput.value = destinationInput.value;
+      destinationInput.value = start;
+      if (destinationMarker) destinationMarker.remove();
+      if (originMarker) originMarker.remove();
+      destinationMarker = null;
+      originMarker = null;
+      clearRoutes();
+      setStatus(originInput.value && destinationInput.value ? 'Endpoints swapped. Find a route to update directions.' : 'Endpoints swapped. Add both places to find a route.');
+    });
+    document.getElementById('clear-button').addEventListener('click', () => {
+      originInput.value = '';
+      destinationInput.value = '';
+      waypointList.replaceChildren();
+      currentLocation = null;
+      [destinationMarker, originMarker, locationMarker].forEach((marker) => marker?.remove());
+      destinationMarker = originMarker = locationMarker = null;
+      clearRoutes();
+      const cleanUrl = new URL(window.location.href);
+      cleanUrl.searchParams.delete('from');
+      cleanUrl.searchParams.delete('to');
+      cleanUrl.searchParams.delete('via');
+      window.history.replaceState({}, '', cleanUrl);
+      setStatus('Directions cleared. Search for a place or choose a point on the map.');
+    });
+
+    document.getElementById('share-button').addEventListener('click', async () => {
+      if (!originInput.value.trim() || !destinationInput.value.trim()) {
+        setStatus('Add both route endpoints before sharing directions.', true);
+        return;
+      }
+      const shareUrl = new URL(window.location.href);
+      shareUrl.searchParams.set('from', originInput.value.trim());
+      shareUrl.searchParams.set('to', destinationInput.value.trim());
+      const vias = getWaypointInputs().map((input) => input.value.trim());
+      if (vias.length) shareUrl.searchParams.set('via', JSON.stringify(vias));
+      else shareUrl.searchParams.delete('via');
+      try {
+        await navigator.clipboard.writeText(shareUrl.href);
+        setStatus('Shareable directions link copied to your clipboard.');
+      } catch (_) {
+        setStatus(`Clipboard access unavailable. Route link: ${shareUrl.href}`, true);
+      }
+    });
+
+    function distanceInMeters(a, b) {
+      const radians = (degrees) => degrees * Math.PI / 180;
+      const dLat = radians(b.lat - a.lat);
+      const dLon = radians(b.lon - a.lon);
+      const lat1 = radians(a.lat);
+      const lat2 = radians(b.lat);
+      const value = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+      return 6371000 * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
+    }
+
+    document.getElementById('nearby-button').addEventListener('click', async () => {
+      const status = document.getElementById('nearby-status');
+      const list = document.getElementById('nearby-list');
+      const center = map.getCenter();
+      const [key, value] = document.getElementById('nearby-category').value.split(':');
+      if (nearbyRequest) nearbyRequest.abort();
+      nearbyRequest = new AbortController();
+      nearbyLayer.clearLayers();
+      list.replaceChildren();
+      status.textContent = 'Searching nearby places…';
+            try {
+        const response = await fetch(`/api/nearby?lat=${center.lat}&lng=${center.lng}&key=${encodeURIComponent(key)}&value=${encodeURIComponent(value)}`, { signal: nearbyRequest.signal });
+        if (!response.ok) throw new Error('Nearby search is busy. Please try again shortly.');
+        const data = await response.json();
+        const places = (data.elements || []).map((item) => {
+          const point = item.type === 'node' ? { lat: item.lat, lon: item.lon } : item.center;
+          if (!point || !Number.isFinite(point.lat) || !Number.isFinite(point.lon)) return null;
+          return { lat: point.lat, lon: point.lon, name: item.tags?.name || item.tags?.brand || value, distance: distanceInMeters(center, point) };
+        }).filter(Boolean).sort((a, b) => a.distance - b.distance).slice(0, 20);
+        if (!places.length) {
+          status.textContent = 'No mapped places found nearby. Try another category or move the map.';
+          return;
+        }
+        status.textContent = `Showing ${places.length} nearby places · within about 1.8 km`;
+        places.forEach((place) => {
+          const popup = document.createElement('strong');
+          popup.textContent = place.name;
+          L.circleMarker([place.lat, place.lon], { radius: 7, color: '#fff', weight: 2, fillColor: '#e66c4d', fillOpacity: .95 })
+            .bindPopup(popup).addTo(nearbyLayer);
+          const row = document.createElement('button');
+          row.type = 'button';
+          row.className = 'nearby-place';
+          const name = document.createElement('strong');
+          name.textContent = place.name;
+          const distance = document.createElement('span');
+          distance.textContent = place.distance < 1000 ? `${Math.round(place.distance)} m` : `${(place.distance / 1000).toFixed(1)} km`;
+          row.append(name, distance);
+          row.addEventListener('click', () => {
+            showDestination(place);
+            setStatus(`Destination set: ${place.name}. Add a starting point to get directions.`);
+            map.setView([place.lat, place.lon], Math.max(map.getZoom(), 16));
+          });
+          list.appendChild(row);
+        });
+      } catch (error) {
+        if (error.name !== 'AbortError') status.textContent = error.message || 'Nearby search is unavailable right now.';
+      }
+    });
+
+    const sharedRoute = new URLSearchParams(window.location.search);
+    if (sharedRoute.has('from') && sharedRoute.has('to')) {
+      originInput.value = sharedRoute.get('from');
+      destinationInput.value = sharedRoute.get('to');
+      try {
+        const sharedVias = JSON.parse(sharedRoute.get('via') || '[]');
+        if (Array.isArray(sharedVias)) sharedVias.filter((stop) => typeof stop === 'string').slice(0, 5).forEach((stop) => addWaypoint(stop));
+      } catch (_) { setStatus('The shared route had invalid intermediate stops; loading its endpoints only.', true); }
+      setStatus('Shared route loaded. Finding directions…');
+      setTimeout(() => document.getElementById('route-button').click(), 250);
+    }
+  </script>
+</body>
+</html>

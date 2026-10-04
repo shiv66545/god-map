@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: atlas-maps
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --workers 1 --threads 16 --timeout 30
+    healthCheckPath: /healthz
+    envVars:
+      - key: CONTACT_EMAIL
+        sync: false
+      - key: PYTHON_VERSION
+        value: 3.12.3
